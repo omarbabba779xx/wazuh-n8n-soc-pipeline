@@ -1,8 +1,15 @@
 [Unit]
 Description=Retry queued Wazuh alerts to n8n webhook
-After=network.target
+After=network-online.target docker.service
+Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=root
+User=wazuh
+Group=wazuh
 ExecStart=/usr/bin/python3 /var/ossec/integrations/n8n_queue_retry.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/ossec/var/n8n_queue /var/ossec/logs

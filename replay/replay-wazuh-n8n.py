@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import glob
+import time
 import requests
 
 logging.basicConfig(
@@ -20,12 +21,21 @@ logging.basicConfig(
 
 TOKEN_FILE = "/var/ossec/etc/n8n_token"
 QUEUE_DIR = "/var/ossec/var/n8n_queue"
+DEAD_LETTER_DIR = "/var/ossec/var/n8n_queue/dead-letter"
 WEBHOOK_URL = "http://127.0.0.1:5678/webhook/wazuh-alert"
+MAX_AGE_SECONDS = 24 * 60 * 60  # give up and quarantine after 24h of failed retries
 
 
 def load_token() -> str:
     with open(TOKEN_FILE) as f:
         return f.read().strip()
+
+
+def quarantine(fpath: str) -> None:
+    os.makedirs(DEAD_LETTER_DIR, exist_ok=True)
+    dest = os.path.join(DEAD_LETTER_DIR, os.path.basename(fpath))
+    os.replace(fpath, dest)
+    logging.error(f"moved to dead-letter after exceeding {MAX_AGE_SECONDS}s of retries: {dest}")
 
 
 def main() -> None:
@@ -46,15 +56,22 @@ def main() -> None:
             with open(fpath) as f:
                 payload = json.load(f)
             resp = requests.post(WEBHOOK_URL, headers=headers, data=json.dumps(payload), timeout=10)
-            if resp.status_code < 400:
+            if 200 <= resp.status_code < 300:
                 os.remove(fpath)
                 sent += 1
                 logging.info(f"drained queued alert {payload.get('event_id')} -> HTTP {resp.status_code}")
             else:
                 failed += 1
+                if time.time() - os.path.getmtime(fpath) > MAX_AGE_SECONDS:
+                    quarantine(fpath)
         except Exception as e:
             failed += 1
             logging.warning(f"retry still failing for {fpath}: {e}")
+            try:
+                if time.time() - os.path.getmtime(fpath) > MAX_AGE_SECONDS:
+                    quarantine(fpath)
+            except FileNotFoundError:
+                pass
 
     if sent or failed:
         logging.info(f"queue drain pass: {sent} sent, {failed} still queued")

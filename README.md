@@ -93,7 +93,7 @@ Because deduplication keys on event ID and every individual check has a unique o
 <tr><td align="center">Resulting inbox volume — rule 19007</td><td align="center">Matching Wazuh dashboard events</td></tr>
 </table>
 
-**Fix applied:** SCA alerts were excluded from the real-time email forwarding path while remaining available in Wazuh Dashboard for periodic compliance review.
+**Fix:** during the incident, the immediate action was to stop the flood at the source. The durable fix — excluding the `sca` rule group from the real-time forwarding path while leaving it visible in Wazuh Dashboard for periodic review — is implemented in `wazuh/custom-n8n` (`EXCLUDED_RULE_GROUPS`), committed after the fact.
 
 ---
 

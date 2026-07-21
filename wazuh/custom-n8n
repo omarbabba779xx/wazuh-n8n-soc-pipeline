@@ -28,10 +28,22 @@ logging.basicConfig(
 TOKEN_FILE = "/var/ossec/etc/n8n_token"
 QUEUE_DIR = "/var/ossec/var/n8n_queue"
 
+# Rule groups excluded from real-time forwarding: a source like a
+# compliance scan mints one event_id per sub-check, so deduplication
+# by event_id cannot collapse it -- it has to be filtered here instead.
+# These alerts still land in Wazuh Dashboard normally; only the
+# real-time email path is skipped.
+EXCLUDED_RULE_GROUPS = {"sca"}
+
 
 def load_token() -> str:
     with open(TOKEN_FILE) as f:
         return f.read().strip()
+
+
+def is_excluded(alert_json: dict) -> bool:
+    groups = set(alert_json.get("rule", {}).get("groups", []))
+    return bool(groups & EXCLUDED_RULE_GROUPS)
 
 
 def build_payload(alert_json: dict) -> dict:
@@ -49,12 +61,18 @@ def send(payload: dict, webhook_url: str, token: str) -> int:
     return resp.status_code
 
 
+def _safe_id(event_id) -> str:
+    return "".join(c if c.isalnum() or c in "-_." else "_" for c in str(event_id or "unknown"))[:80]
+
+
 def queue_payload(payload: dict) -> None:
     os.makedirs(QUEUE_DIR, exist_ok=True)
-    fname = f"{int(time.time() * 1000)}-{payload.get('event_id', 'unknown')}.json"
+    fname = f"{int(time.time() * 1000)}-{_safe_id(payload.get('event_id'))}.json"
     fpath = os.path.join(QUEUE_DIR, fname)
-    with open(fpath, "w") as f:
+    tmp_path = fpath + ".tmp"
+    with open(tmp_path, "w") as f:
         json.dump(payload, f)
+    os.replace(tmp_path, fpath)  # atomic on the same filesystem
     logging.warning(f"queued alert {payload.get('event_id')} to {fpath} (n8n unreachable)")
 
 
@@ -65,13 +83,17 @@ def main(args: list) -> None:
     with open(alert_file) as f:
         alert_json = json.load(f)
 
+    if is_excluded(alert_json):
+        logging.info(f"skipped alert {alert_json.get('id')} (excluded rule group)")
+        return
+
     payload = build_payload(alert_json)
     token = load_token()
 
     try:
         status = send(payload, webhook_url, token)
         logging.info(f"sent alert {payload.get('event_id')} -> HTTP {status}")
-        if status >= 400:
+        if not (200 <= status < 300):
             queue_payload(payload)
     except Exception as e:
         logging.error(f"failed to send alert: {e}")

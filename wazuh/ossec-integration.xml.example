@@ -6,6 +6,13 @@
   hook_url points at the n8n production webhook -- not /webhook-test/.
   The actual auth token is read by the custom-n8n script from
   /var/ossec/etc/n8n_token (chmod 640, root:wazuh), never placed here.
+
+  The <level> filter alone is not enough to keep a noisy source (e.g. a
+  full SCA compliance scan) from flooding the pipeline -- it mints one
+  event_id per sub-check, so deduplication downstream can't collapse it.
+  The actual group exclusion (EXCLUDED_RULE_GROUPS) lives in
+  wazuh/custom-n8n, since Wazuh's <integration> block has no native
+  "exclude by group" filter.
 -->
 <ossec_config>
   <integration>

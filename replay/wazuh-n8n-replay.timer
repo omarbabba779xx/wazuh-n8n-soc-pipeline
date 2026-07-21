@@ -5,6 +5,7 @@ Description=Run the n8n alert queue drain every minute
 OnBootSec=30
 OnUnitActiveSec=60
 AccuracySec=5
+Persistent=true
 
 [Install]
 WantedBy=timers.target
