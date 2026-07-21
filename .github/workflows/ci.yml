@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  lint-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install runtime dependency (requests)
+        run: pip install "requests>=2.31,<3"
+
+      - name: Python syntax check
+        run: |
+          python -m py_compile wazuh/custom-n8n
+          python -m py_compile replay/replay-wazuh-n8n.py
+
+      - name: Validate n8n workflow JSON
+        run: python -m json.tool n8n/wazuh-alert-processing.workflow.json > /dev/null
+
+      - name: Validate sample alert JSON
+        run: |
+          for f in tests/sample-*.json; do
+            python -m json.tool "$f" > /dev/null
+          done
+
+      - name: Shell syntax check
+        run: bash -n tests/test-webhook.sh
+
+      - name: Validate docker-compose config
+        run: |
+          docker compose -f docker/docker-compose.yml --env-file .env.example config > /dev/null
+
+      - name: Scan for obvious committed secrets
+        run: |
+          if grep -rniE "GOCSPX|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY" --exclude-dir=.git .; then
+            echo "Potential secret pattern found -- failing build."
+            exit 1
+          fi
+          echo "No obvious secret patterns found."

@@ -30,15 +30,17 @@ Status legend: ✅ executed and verified in this project · 🔧 fixed after rev
 
 ## Running the tests you can reproduce
 
+Run from the repository root (or `cd tests` first and drop the `tests/` prefix below):
+
 ```bash
-export WAZUH_N8N_TOKEN=your_token
-./test-webhook.sh sample-high-alert.json
-./test-webhook.sh sample-medium-alert.json
-./test-webhook.sh sample-critical-alert.json
+export WAZUH_N8N_TOKEN=your_token   # or rely on a repo-root .env, auto-loaded
+tests/test-webhook.sh tests/sample-high-alert.json
+tests/test-webhook.sh tests/sample-medium-alert.json
+tests/test-webhook.sh tests/sample-critical-alert.json
 
 # send the same file twice to verify dedup (T11)
-./test-webhook.sh sample-high-alert.json
-./test-webhook.sh sample-high-alert.json
+tests/test-webhook.sh tests/sample-high-alert.json
+tests/test-webhook.sh tests/sample-high-alert.json
 ```
 
 Check the n8n Executions tab and the destination inbox after each run.

@@ -28,31 +28,31 @@ All commands below are run from the repository root — none of them `cd` anywhe
    - a Gmail OAuth2 credential
    - the recipient email address in the Gmail node
 6. Publish/activate the workflow.
-7. On the Wazuh manager:
+7. On the Wazuh manager (everything under `/var/ossec` and `/etc/systemd/system` needs root — either prefix each command with `sudo` as shown, or run `sudo -i` once first):
    ```bash
-   cp wazuh/custom-n8n /var/ossec/integrations/custom-n8n
-   chown root:wazuh /var/ossec/integrations/custom-n8n
-   chmod 750 /var/ossec/integrations/custom-n8n
+   sudo cp wazuh/custom-n8n /var/ossec/integrations/custom-n8n
+   sudo chown root:wazuh /var/ossec/integrations/custom-n8n
+   sudo chmod 750 /var/ossec/integrations/custom-n8n
 
-   echo "YOUR_TOKEN" > /var/ossec/etc/n8n_token
-   chown root:wazuh /var/ossec/etc/n8n_token
-   chmod 640 /var/ossec/etc/n8n_token
+   echo "YOUR_TOKEN" | sudo tee /var/ossec/etc/n8n_token > /dev/null
+   sudo chown root:wazuh /var/ossec/etc/n8n_token
+   sudo chmod 640 /var/ossec/etc/n8n_token
    ```
-8. Append the contents of `wazuh/ossec-integration.xml.example` to `/var/ossec/etc/ossec.conf`.
-9. Restart the manager: `systemctl restart wazuh-manager` (or `/var/ossec/bin/wazuh-control restart`).
+8. Append the contents of `wazuh/ossec-integration.xml.example` to `/var/ossec/etc/ossec.conf` (`sudo` required to edit it).
+9. Restart the manager: `sudo systemctl restart wazuh-manager` (or `sudo /var/ossec/bin/wazuh-control restart`).
 10. Install the failure-recovery timer. The service runs as the `wazuh` user, so the queue directory needs to be group-writable:
     ```bash
     sudo apt install -y python3-requests
-    cp replay/replay-wazuh-n8n.py /var/ossec/integrations/n8n_queue_retry.py
+    sudo cp replay/replay-wazuh-n8n.py /var/ossec/integrations/n8n_queue_retry.py
 
-    mkdir -p /var/ossec/var/n8n_queue
-    chown root:wazuh /var/ossec/var/n8n_queue
-    chmod 770 /var/ossec/var/n8n_queue
+    sudo mkdir -p /var/ossec/var/n8n_queue
+    sudo chown root:wazuh /var/ossec/var/n8n_queue
+    sudo chmod 770 /var/ossec/var/n8n_queue
 
-    cp replay/wazuh-n8n-replay.service /etc/systemd/system/
-    cp replay/wazuh-n8n-replay.timer /etc/systemd/system/
-    systemctl daemon-reload
-    systemctl enable --now wazuh-n8n-replay.timer
+    sudo cp replay/wazuh-n8n-replay.service /etc/systemd/system/
+    sudo cp replay/wazuh-n8n-replay.timer /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now wazuh-n8n-replay.timer
     ```
 11. Trigger a test alert on the manager (e.g. a few failed `sudo` attempts) and confirm it arrives in n8n's Executions tab, then in the inbox.
 
