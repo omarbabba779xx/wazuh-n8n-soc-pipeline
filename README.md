@@ -120,7 +120,11 @@ Because deduplication keys on event ID and every individual check has a unique o
 
 ## Getting Started
 
-See [`docs/installation.md`](docs/installation.md) for the full setup procedure.
+See [`docs/installation.md`](docs/installation.md) for the full setup procedure and [`docs/troubleshooting.md`](docs/troubleshooting.md) if something doesn't come up cleanly.
+
+## Testing
+
+[`tests/test-matrix.md`](tests/test-matrix.md) tracks what has actually been verified versus what's still recommended. Reproduce the covered cases with `tests/test-webhook.sh` and the sample payloads in `tests/`.
 
 ## Repository Structure
 
@@ -140,8 +144,15 @@ See [`docs/installation.md`](docs/installation.md) for the full setup procedure.
 │   ├── replay-wazuh-n8n.py
 │   ├── wazuh-n8n-replay.service
 │   └── wazuh-n8n-replay.timer
+├── tests/
+│   ├── sample-medium-alert.json
+│   ├── sample-high-alert.json
+│   ├── sample-critical-alert.json
+│   ├── test-webhook.sh
+│   └── test-matrix.md
 ├── docs/
-│   └── installation.md
+│   ├── installation.md
+│   └── troubleshooting.md
 └── assets/
     ├── architecture.png
     ├── pipeline-walkthrough.mp4

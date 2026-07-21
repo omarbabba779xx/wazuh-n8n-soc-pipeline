@@ -1,0 +1,18 @@
+{
+  "source": "wazuh",
+  "event_id": "test-high-0001",
+  "sent_at": "2026-01-01T00:00:00Z",
+  "alert": {
+    "id": "test-high-0001",
+    "timestamp": "2026-01-01T00:00:00Z",
+    "rule": {
+      "id": "5712",
+      "level": 10,
+      "description": "Sample high-severity test alert",
+      "groups": ["test"]
+    },
+    "agent": { "id": "000", "name": "test-agent", "ip": "10.0.0.10" },
+    "location": "test",
+    "full_log": "This is a synthetic high-severity test event."
+  }
+}
