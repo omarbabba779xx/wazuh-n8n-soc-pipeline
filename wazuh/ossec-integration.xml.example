@@ -1,0 +1,17 @@
+<!--
+  Append this block to /var/ossec/etc/ossec.conf.
+  Wazuh supports multiple <ossec_config> root blocks in the same file,
+  so this can be added as a standalone block without touching existing config.
+
+  hook_url points at the n8n production webhook -- not /webhook-test/.
+  The actual auth token is read by the custom-n8n script from
+  /var/ossec/etc/n8n_token (chmod 640, root:wazuh), never placed here.
+-->
+<ossec_config>
+  <integration>
+    <name>custom-n8n</name>
+    <hook_url>http://127.0.0.1:5678/webhook/wazuh-alert</hook_url>
+    <level>7</level>
+    <alert_format>json</alert_format>
+  </integration>
+</ossec_config>

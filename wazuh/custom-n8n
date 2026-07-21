@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""
+Wazuh Integrator script: forwards alerts to the n8n webhook.
+
+Install at:
+  /var/ossec/integrations/custom-n8n
+Permissions:
+  chown root:wazuh /var/ossec/integrations/custom-n8n
+  chmod 750 /var/ossec/integrations/custom-n8n
+
+Reads the webhook URL and token at runtime -- neither value is
+hardcoded here. The token is read from a file with restricted
+permissions so it never appears in process listings or this script.
+"""
+import sys
+import json
+import logging
+import time
+import os
+import requests
+
+logging.basicConfig(
+    filename="/var/ossec/logs/integrations.log",
+    level=logging.INFO,
+    format="%(asctime)s custom-n8n: %(message)s",
+)
+
+TOKEN_FILE = "/var/ossec/etc/n8n_token"
+QUEUE_DIR = "/var/ossec/var/n8n_queue"
+
+
+def load_token() -> str:
+    with open(TOKEN_FILE) as f:
+        return f.read().strip()
+
+
+def build_payload(alert_json: dict) -> dict:
+    return {
+        "source": "wazuh",
+        "event_id": alert_json.get("id"),
+        "sent_at": alert_json.get("timestamp"),
+        "alert": alert_json,
+    }
+
+
+def send(payload: dict, webhook_url: str, token: str) -> int:
+    headers = {"Content-Type": "application/json", "X-Wazuh-Token": token}
+    resp = requests.post(webhook_url, headers=headers, data=json.dumps(payload), timeout=10)
+    return resp.status_code
+
+
+def queue_payload(payload: dict) -> None:
+    os.makedirs(QUEUE_DIR, exist_ok=True)
+    fname = f"{int(time.time() * 1000)}-{payload.get('event_id', 'unknown')}.json"
+    fpath = os.path.join(QUEUE_DIR, fname)
+    with open(fpath, "w") as f:
+        json.dump(payload, f)
+    logging.warning(f"queued alert {payload.get('event_id')} to {fpath} (n8n unreachable)")
+
+
+def main(args: list) -> None:
+    alert_file = args[1]
+    webhook_url = args[3] if len(args) > 3 else args[2]
+
+    with open(alert_file) as f:
+        alert_json = json.load(f)
+
+    payload = build_payload(alert_json)
+    token = load_token()
+
+    try:
+        status = send(payload, webhook_url, token)
+        logging.info(f"sent alert {payload.get('event_id')} -> HTTP {status}")
+        if status >= 400:
+            queue_payload(payload)
+    except Exception as e:
+        logging.error(f"failed to send alert: {e}")
+        queue_payload(payload)
+
+
+if __name__ == "__main__":
+    main(sys.argv)

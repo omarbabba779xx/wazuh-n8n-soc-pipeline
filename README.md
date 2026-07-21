@@ -102,13 +102,33 @@ Because deduplication keys on event ID and every individual check has a unique o
 
 ---
 
+## Getting Started
+
+See [`docs/installation.md`](docs/installation.md) for the full setup procedure.
+
 ## Repository Structure
 
 ```
 .
 ├── README.md
+├── .env.example
+├── .gitignore
+├── docker/
+│   └── docker-compose.yml
+├── wazuh/
+│   ├── custom-n8n
+│   └── ossec-integration.xml.example
+├── n8n/
+│   └── wazuh-alert-processing.workflow.json
+├── replay/
+│   ├── replay-wazuh-n8n.py
+│   ├── wazuh-n8n-replay.service
+│   └── wazuh-n8n-replay.timer
+├── docs/
+│   └── installation.md
 └── assets/
-    ├── architecture-diagram.svg
+    ├── architecture.png
+    ├── pipeline-walkthrough.mp4
     └── screenshots/
         ├── 01-wazuh-dashboard-rule5712.png
         ├── 02-gmail-alert-rule5712.png

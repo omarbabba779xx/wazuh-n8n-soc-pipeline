@@ -1,0 +1,179 @@
+{
+  "name": "SOC — Wazuh Alert Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wazuh-alert",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "REPLACE_WITH_YOUR_WEBHOOK_ID",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const incoming = $json.body ?? $json;\nconst alert = incoming.alert ?? incoming;\n\nif (!alert || typeof alert !== 'object') {\n  throw new Error('Invalid Wazuh payload: alert object is missing');\n}\n\nconst rule = alert.rule ?? {};\nconst agent = alert.agent ?? {};\nconst data = alert.data ?? {};\n\nconst eventId = incoming.event_id ?? alert.id ?? (agent.id ?? 'unknown') + '-' + (rule.id ?? 'unknown') + '-' + (alert.timestamp ?? Date.now());\n\nconst level = Number(rule.level ?? 0);\n\nlet severity = 'informational';\nif (level >= 12) severity = 'critical';\nelse if (level >= 10) severity = 'high';\nelse if (level >= 7) severity = 'medium';\nelse if (level >= 4) severity = 'low';\n\nconst normalized = {\n  event_id: String(eventId),\n  source: incoming.source ?? 'wazuh',\n  sent_at: incoming.sent_at ?? null,\n  timestamp: alert.timestamp ?? null,\n  level: level,\n  severity: severity,\n  rule_id: String(rule.id ?? 'unknown'),\n  rule_description: rule.description ?? 'No description',\n  rule_groups: rule.groups ?? [],\n  agent_id: String(agent.id ?? 'unknown'),\n  agent_name: agent.name ?? 'unknown',\n  agent_ip: agent.ip ?? null,\n  location: alert.location ?? null,\n  decoder_name: (alert.decoder ?? {}).name ?? null,\n  source_ip: data.srcip ?? data.src_ip ?? null,\n  destination_ip: data.dstip ?? data.dst_ip ?? null,\n  username: data.srcuser ?? data.dstuser ?? null,\n  full_log: alert.full_log ?? null,\n  raw_alert: alert\n};\n\nreturn [{ json: normalized }];"
+      },
+      "id": "normalize-node",
+      "name": "Normalize Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.event_id}}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            },
+            {
+              "leftValue": "={{ typeof $json.level === 'number' && !isNaN($json.level)}}",
+              "rightValue": "",
+              "operator": { "type": "boolean", "operation": "true" }
+            },
+            {
+              "leftValue": "={{ $json.rule_id}}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            },
+            {
+              "leftValue": "={{ $json.agent_name}}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": { "looseTypeValidation": true }
+      },
+      "id": "validate-node",
+      "name": "Validate Alert",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "operation": "removeItemsSeenInPreviousExecutions",
+        "keepItemsWhere": "isNew",
+        "valueToDedupeOn": "={{$json.event_id}}"
+      },
+      "id": "dedup-node",
+      "name": "Remove Duplicates",
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [660, -80]
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  { "leftValue": "={{$json.severity}}", "rightValue": "medium", "operator": { "type": "string", "operation": "equals" } }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "medium"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  { "leftValue": "={{$json.severity}}", "rightValue": "high", "operator": { "type": "string", "operation": "equals" } }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "high"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  { "leftValue": "={{$json.severity}}", "rightValue": "critical", "operator": { "type": "string", "operation": "equals" } }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "critical"
+            }
+          ]
+        }
+      },
+      "id": "router-node",
+      "name": "Severity Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [880, -80]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const item = $json;\nconst sevLabel = (item.severity || 'informational').toUpperCase();\nconst subject = `[WAZUH][${sevLabel}][L${item.level}][RULE ${item.rule_id}] ${item.agent_name} — ${item.rule_description}`;\nconst html = `<h2>Wazuh Security Alert</h2>\n<table>\n  <tr><td><strong>Severity</strong></td><td>${item.severity}</td></tr>\n  <tr><td><strong>Level</strong></td><td>${item.level}</td></tr>\n  <tr><td><strong>Event ID</strong></td><td>${item.event_id}</td></tr>\n  <tr><td><strong>Timestamp</strong></td><td>${item.timestamp}</td></tr>\n  <tr><td><strong>Rule ID</strong></td><td>${item.rule_id}</td></tr>\n  <tr><td><strong>Description</strong></td><td>${item.rule_description}</td></tr>\n  <tr><td><strong>Agent</strong></td><td>${item.agent_name}</td></tr>\n  <tr><td><strong>Agent IP</strong></td><td>${item.agent_ip ?? 'Not available'}</td></tr>\n  <tr><td><strong>Source IP</strong></td><td>${item.source_ip ?? 'Not available'}</td></tr>\n  <tr><td><strong>Username</strong></td><td>${item.username ?? 'Not available'}</td></tr>\n  <tr><td><strong>Location</strong></td><td>${item.location}</td></tr>\n</table>\n<h3>Original log</h3>\n<pre>${item.full_log ?? 'Not available'}</pre>\n<p>This message was generated automatically by the local Wazuh–n8n SOC workflow. Verify the alert in Wazuh Dashboard before taking any response action.</p>`;\nreturn [{ json: { ...item, email_subject: subject, email_html: html } }];"
+      },
+      "id": "format-node",
+      "name": "Format Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 40]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "REPLACE_WITH_RECIPIENT_EMAIL",
+        "subject": "={{$json.email_subject}}",
+        "emailType": "html",
+        "message": "={{$json.email_html}}",
+        "options": {
+          "senderName": "Wazuh SOC Bot"
+        }
+      },
+      "id": "gmail-node",
+      "name": "Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1320, 40],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Normalize Alert", "type": "main", "index": 0 }]] },
+    "Normalize Alert": { "main": [[{ "node": "Validate Alert", "type": "main", "index": 0 }]] },
+    "Validate Alert": { "main": [[{ "node": "Remove Duplicates", "type": "main", "index": 0 }], []] },
+    "Remove Duplicates": { "main": [[{ "node": "Severity Router", "type": "main", "index": 0 }]] },
+    "Severity Router": {
+      "main": [
+        [{ "node": "Format Email", "type": "main", "index": 0 }],
+        [{ "node": "Format Email", "type": "main", "index": 0 }],
+        [{ "node": "Format Email", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Email": { "main": [[{ "node": "Gmail", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

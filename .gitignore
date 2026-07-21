@@ -1,0 +1,17 @@
+.env
+*.env
+credentials/
+secrets/
+*.key
+*.pem
+*.crt
+*.log
+__pycache__/
+*.pyc
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+n8n_data/
+queue/
+dead-letter/
