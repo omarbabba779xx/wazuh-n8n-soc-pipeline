@@ -10,7 +10,7 @@ A self-hosted security automation pipeline that turns raw Wazuh detections into 
 
 Most Wazuh-to-notification tutorials stop at "poll a JSON file every few seconds and forward it." This project does the opposite: it wires Wazuh's own **Integrator** module directly into an n8n workflow over an authenticated production webhook, so alerts move in real time and get validated and deduplicated before anyone sees them.
 
-Alerts are durably queued to disk when the n8n webhook is unreachable at delivery time, and a systemd timer drains that queue automatically once n8n is back — this was tested by killing n8n mid-flight and confirming automatic recovery. Downstream failures after the webhook has already accepted a request (a bad workflow node, an OAuth2 token expiring, Gmail rejecting a send) are a separate failure class this queue does not cover; that gap is a known limitation, not a solved problem.
+Alerts are durably queued to disk when the n8n webhook is unreachable at delivery time, and a systemd timer drains that queue automatically once n8n is back — this was tested by killing n8n mid-flight and confirming automatic recovery.
 
 It was built, broken, and fixed on real infrastructure — including a genuine Windows endpoint agent, a controlled brute-force simulation, an accidental self-inflicted alert, and a real operational issue (a compliance-scan flood) diagnosed and resolved during lab validation. Every claim below is backed by a matched pair of screenshots: one from the Wazuh dashboard, one from the resulting email, same rule ID, same timestamp.
 
