@@ -10,11 +10,13 @@ A walkthrough video of the diagram above, following one alert through all ten st
 
 ## About
 
-Most Wazuh-to-notification tutorials stop at "poll a JSON file every few seconds and forward it." This project does the opposite: it wires Wazuh's own **Integrator** module directly into an n8n workflow over an authenticated production webhook, so alerts move in real time, get validated and deduplicated before anyone sees them, and survive n8n going down without losing a single event.
+Most Wazuh-to-notification tutorials stop at "poll a JSON file every few seconds and forward it." This project does the opposite: it wires Wazuh's own **Integrator** module directly into an n8n workflow over an authenticated production webhook, so alerts move in real time and get validated and deduplicated before anyone sees them.
 
-It was built, broken, and fixed on real infrastructure — including a genuine Windows endpoint agent, a real brute-force detection, an accidental self-inflicted alert, and a production incident (a compliance-scan flood) that got diagnosed and resolved live. Every claim below is backed by a matched pair of screenshots: one from the Wazuh dashboard, one from the resulting email, same rule ID, same timestamp.
+Alerts are durably queued to disk when the n8n webhook is unreachable at delivery time, and a systemd timer drains that queue automatically once n8n is back — this was tested by killing n8n mid-flight and confirming automatic recovery. Downstream failures after the webhook has already accepted a request (a bad workflow node, an OAuth2 token expiring, Gmail rejecting a send) are a separate failure class this queue does not cover; that gap is a known limitation, not a solved problem.
 
-**Stack:** Wazuh 4.14 (manager + Windows agent) · Docker · n8n (self-hosted, pinned version) · Gmail API (OAuth2) · systemd
+It was built, broken, and fixed on real infrastructure — including a genuine Windows endpoint agent, a controlled brute-force simulation, an accidental self-inflicted alert, and a real operational issue (a compliance-scan flood) diagnosed and resolved during lab validation. Every claim below is backed by a matched pair of screenshots: one from the Wazuh dashboard, one from the resulting email, same rule ID, same timestamp.
+
+**Stack:** Wazuh 4.14.6 (manager + Windows agent) · Docker · n8n 2.31.4 (self-hosted, pinned) · Gmail API (OAuth2) · systemd
 
 ---
 
@@ -29,11 +31,11 @@ It was built, broken, and fixed on real infrastructure — including a genuine W
 | 5 | **Normalize** | Flattens the raw alert into a consistent shape, maps rule level to a severity label |
 | 6 | **Validate** | Rejects malformed or incomplete payloads before they propagate |
 | 7 | **Deduplicate** | Tracks event IDs already processed; repeats are dropped silently |
-| 8 | **Severity Router** | Branches on severity — low-noise events never reach an inbox |
+| 8 | **Severity Router** | Branches on severity label; low-severity and explicitly excluded noisy sources never generate an email |
 | 9 | **Format** | Builds an HTML report; the subject line alone is enough to triage |
 | 10 | **Gmail Delivery** | Sends via an authenticated OAuth2 account under a dedicated sender identity |
 
-If the webhook is unreachable at step 4, the alert is written to a local disk queue instead of being dropped. A systemd timer retries every 60 seconds and drains the queue automatically the moment n8n comes back — this was tested by killing n8n mid-flight and confirming automatic recovery.
+If the webhook is unreachable at step 4, the alert is written to a local disk queue instead of being dropped. A systemd timer retries every 60 seconds and drains the queue automatically the moment n8n comes back.
 
 ---
 
@@ -41,9 +43,9 @@ If the webhook is unreachable at step 4, the alert is written to a local disk qu
 
 Each case below pairs the Wazuh-side detection with the resulting notification — same rule ID, same timestamp, proving the pipeline end to end rather than a mocked demo.
 
-### Case 1 — Real brute-force detection
+### Case 1 — Controlled brute-force detection
 
-A live SSH brute-force attempt against a non-existent user was detected natively by Wazuh (rule 5712, level 10) and forwarded automatically, with no manual intervention.
+A controlled SSH brute-force simulation against a non-existent user, run inside the authorized local lab, was detected natively by Wazuh (rule 5712, level 10) and forwarded automatically, with no manual intervention.
 
 <table>
 <tr>
@@ -81,7 +83,7 @@ While debugging an SSH key permission issue, three consecutive `sudo` password t
 
 A genuine Wazuh agent was deployed on a Windows 11 host and connected to the manager. Its built-in Security Configuration Assessment module ran a full CIS benchmark scan — 482 checks, 350 of them failing, many at level 7 and above.
 
-Because deduplication keys on event ID and every individual check has a unique one, every failed check produced its own independent, valid alert. The pipeline behaved exactly as designed — the volume simply exposed a missing noise filter on a compliance-scan source that was never meant to page anyone. It's included here deliberately: a pipeline that never gets stress-tested by its own data hasn't really been tested.
+Because deduplication keys on event ID and every individual check has a unique one, every failed check produced its own independent, valid alert. Deduplication by event ID is correct for suppressing a retransmitted copy of the same incident, but it cannot collapse a batch of genuinely distinct sub-events from one noisy source — that filtering has to happen upstream, at the Integrator or rule-group level, not in the dedup step. The pipeline behaved exactly as configured; the volume exposed a missing scope filter on a source that was never meant to page anyone. It's included here deliberately: a pipeline that never gets stress-tested by its own data hasn't really been tested.
 
 <table>
 <tr>
@@ -91,14 +93,28 @@ Because deduplication keys on event ID and every individual check has a unique o
 <tr><td align="center">Resulting inbox volume — rule 19007</td><td align="center">Matching Wazuh dashboard events</td></tr>
 </table>
 
+**Fix applied:** SCA alerts were excluded from the real-time email forwarding path while remaining available in Wazuh Dashboard for periodic compliance review.
+
 ---
 
 ## Lessons Learned
 
-- **Event-driven beats polling.** Wiring the Integrator directly cut alert latency to 2–4 seconds, with no wasted cycles re-reading a log file.
+- **Event-driven beats polling.** Wiring the Integrator directly kept observed alert latency in the low single-digit seconds across every test case, with no wasted cycles re-reading a log file.
 - **Deduplication needs a scope, not just a key.** Keying on event ID alone is correct for genuine incidents, but a noisy source that mints a fresh ID per sub-check will bypass it entirely — the fix belongs at the source filter, not the dedup logic.
 - **A downtime test is only real if you kill the service mid-flight.** Simulating queue behavior in code proves nothing; stopping the container and watching the disk queue drain automatically on restart does.
 - **The best failure mode is a loud one.** The compliance-scan flood was diagnosed and root-caused within minutes because the pipeline surfaced every alert individually instead of swallowing errors silently.
+
+---
+
+## Security Controls
+
+- The n8n production webhook requires header-token authentication — not a token embedded in the URL.
+- The Wazuh Integrator script reads the token from `/var/ossec/etc/n8n_token` (`640`, `root:wazuh`); it is never hardcoded in the script or logged.
+- Gmail delivery uses OAuth2 — no application password stored in plaintext.
+- n8n listens on `127.0.0.1` only; remote access goes through an SSH tunnel, never a direct network exposure.
+- Host firewall is default-deny with explicit allow rules scoped to required ports.
+- Secrets, tokens, and credential IDs are excluded from this repository (`.gitignore`, `.env.example` placeholders); the committed n8n workflow and integration files use `REPLACE_WITH_*` placeholders in place of real credential references.
+- Screenshots were reviewed before publication; the only IP addresses visible are private RFC1918 lab addresses.
 
 ---
 
