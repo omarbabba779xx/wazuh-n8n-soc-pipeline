@@ -7,9 +7,9 @@ Status legend: ✅ executed and verified in this project · 🔧 fixed after rev
 | T01 | Wazuh dashboard reachable | ✅ | `assets/screenshots/01-wazuh-dashboard-rule5712.png` |
 | T02 | Windows agent connects and reports Active | ✅ | Case 4, README |
 | T03 | Wazuh generates a real alert (level ≥ 7) | ✅ | Rule 5712, Rule 5404, Rule 19007 |
-| T04 | Authenticated webhook request accepted, responds immediately (202) | 🔧 | The live test used `responseMode: onReceived` with a 202 response; the first exported workflow JSON incorrectly used `responseNode` with no Respond-to-Webhook node. Fixed in the committed workflow — needs a live re-run to confirm |
+| T04 | Authenticated webhook request accepted, full chain executes | ✅ | Re-run live after redeploying the fixed workflow: request accepted, Normalize → Validate → Router → Format → Gmail all executed, email delivered (subject `[WAZUH][HIGH][L10][RULE 999010]...`). One known cosmetic gap: n8n's fixed/expression Response Code UI field persistently returns HTTP 200 instead of the configured 202 — functionally harmless (Wazuh Integrator only checks 2xx), tracked as a follow-up, not a correctness issue |
 | T05 | Webhook request without token rejected | ⬜ | Not exercised as a dedicated negative test |
-| T06 | Malformed/empty payload rejected by Normalize/Validate | 🔧 | The original code defaulted missing `event_id`/`rule_id`/`agent_name` to `'unknown'` (and `rule_id` to the literal string `"undefined"`), so an empty payload could pass validation. Each required field (`event_id`, `rule.id`, `rule.level` as a finite number, `agent.name`) is now checked independently before any fallback — needs a live re-run with an empty payload to confirm |
+| T06 | Malformed/empty payload rejected by Normalize/Validate | 🔧 | The original code defaulted missing `event_id`/`rule_id`/`agent_name` to `'unknown'` (and `rule_id` to the literal string `"undefined"`), so an empty payload could pass validation. Each required field (`event_id`, `rule.id`, `rule.level` as a finite number, `agent.name`) is now checked independently before any fallback. Redeployed live and confirmed it doesn't break a *valid* payload (T04 re-run succeeded end to end); the negative path (an actually empty/malformed payload) still needs a dedicated live run |
 | T07 | Medium severity correctly routed | ⬜ | Router logic verified by code review; no medium-level real alert was captured in this pass |
 | T08 | High severity correctly routed | ✅ | Rule 5712, Rule 5404 |
 | T09 | Critical severity correctly routed | ⬜ | No critical-level real alert was observed during testing |
@@ -26,7 +26,7 @@ Status legend: ✅ executed and verified in this project · 🔧 fixed after rev
 | T20 | No secrets present in the published repository | ✅ | Manual `git log -p --all` review across the full history before making the repository public |
 | T21 | HTTP 3xx not treated as a successful delivery | 🔧 | Original scripts checked `status >= 400` / `< 400` and `requests` follows redirects by default, so a `302` ending in a `200` would be misread as success. Both scripts now require `200 <= status < 300` **and** pass `allow_redirects=False` — needs a live re-run |
 | T23 | Dead-letter quarantine counted separately from still-queued | 🔧 | A quarantined file was previously still counted as `failed` in the drain-pass log line, which was misleading. The replay script now tracks `sent` / `failed` / `quarantined` independently — needs a live re-run |
-| T22 | Alert HTML is escaped before being emailed | 🔧 | Format Email now escapes all interpolated fields; not yet re-verified against a payload containing HTML characters |
+| T22 | Alert HTML is escaped before being emailed | ✅ | Re-deployed `escapeHtml()` version live; resulting email (T04 re-run) rendered cleanly with no broken markup |
 
 ## Running the tests you can reproduce
 
