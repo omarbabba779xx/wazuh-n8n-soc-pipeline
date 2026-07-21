@@ -51,30 +51,42 @@ def main() -> None:
 
     sent = 0
     failed = 0
+    quarantined = 0
     for fpath in files:
         try:
             with open(fpath) as f:
                 payload = json.load(f)
-            resp = requests.post(WEBHOOK_URL, headers=headers, data=json.dumps(payload), timeout=10)
+            # allow_redirects=False: a redirect must count as a failed
+            # delivery, not be silently followed and misread as success.
+            resp = requests.post(
+                WEBHOOK_URL,
+                headers=headers,
+                data=json.dumps(payload),
+                timeout=(3, 10),
+                allow_redirects=False,
+            )
             if 200 <= resp.status_code < 300:
                 os.remove(fpath)
                 sent += 1
                 logging.info(f"drained queued alert {payload.get('event_id')} -> HTTP {resp.status_code}")
+            elif time.time() - os.path.getmtime(fpath) > MAX_AGE_SECONDS:
+                quarantine(fpath)
+                quarantined += 1
             else:
                 failed += 1
-                if time.time() - os.path.getmtime(fpath) > MAX_AGE_SECONDS:
-                    quarantine(fpath)
         except Exception as e:
-            failed += 1
             logging.warning(f"retry still failing for {fpath}: {e}")
             try:
                 if time.time() - os.path.getmtime(fpath) > MAX_AGE_SECONDS:
                     quarantine(fpath)
+                    quarantined += 1
+                else:
+                    failed += 1
             except FileNotFoundError:
                 pass
 
-    if sent or failed:
-        logging.info(f"queue drain pass: {sent} sent, {failed} still queued")
+    if sent or failed or quarantined:
+        logging.info(f"queue drain pass: {sent} sent, {failed} still queued, {quarantined} quarantined")
 
 
 if __name__ == "__main__":

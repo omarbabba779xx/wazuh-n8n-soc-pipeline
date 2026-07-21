@@ -26,8 +26,8 @@ It was built, broken, and fixed on real infrastructure — including a genuine W
 |---|---|---|
 | 1 | **Monitored host** | Linux manager + Windows endpoint agent generate raw events: auth logs, sudo activity, file integrity changes, compliance checks |
 | 2 | **Wazuh Manager** | Decodes and classifies events, assigns a rule ID and severity level |
-| 3 | **Wazuh Integrator** | Custom script fires on level ≥ 7, signs the request with a secret token, and posts to the webhook — event-driven, not a polling loop |
-| 4 | **n8n Webhook** | Header-token authenticated ingress, responds instantly, hands off to the processing chain |
+| 3 | **Wazuh Integrator** | Custom script fires on level ≥ 7, authenticates the request with a secret header token, and posts to the webhook — event-driven, not a polling loop |
+| 4 | **n8n Webhook** | Header-token authenticated ingress, responds `202 Accepted` immediately after auth (before Normalize/Validate/Gmail run), then hands off to the processing chain |
 | 5 | **Normalize** | Flattens the raw alert into a consistent shape, maps rule level to a severity label |
 | 6 | **Validate** | Rejects malformed or incomplete payloads before they propagate |
 | 7 | **Deduplicate** | Tracks event IDs already processed; repeats are dropped silently |

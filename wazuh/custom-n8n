@@ -57,7 +57,15 @@ def build_payload(alert_json: dict) -> dict:
 
 def send(payload: dict, webhook_url: str, token: str) -> int:
     headers = {"Content-Type": "application/json", "X-Wazuh-Token": token}
-    resp = requests.post(webhook_url, headers=headers, data=json.dumps(payload), timeout=10)
+    # allow_redirects=False: a redirect must count as a failed delivery,
+    # not be silently followed to whatever it points at.
+    resp = requests.post(
+        webhook_url,
+        headers=headers,
+        data=json.dumps(payload),
+        timeout=(3, 10),
+        allow_redirects=False,
+    )
     return resp.status_code
 
 

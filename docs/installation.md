@@ -6,20 +6,21 @@
 - Wazuh Manager 4.14.x
 - Wazuh Windows Agent 4.14.x (optional, for endpoint coverage)
 - Docker Engine + Docker Compose
-- Python 3 with the `requests` package (`sudo apt install -y python3-requests`, or `pip install -r requirements.txt` in a virtualenv)
+- Python 3 with the `requests` package: `sudo apt install -y python3-requests`
 - A Gmail account with API access (OAuth2 client)
+
+All commands below are run from the repository root — none of them `cd` anywhere, so they stay valid in sequence in the same shell.
 
 ## Steps
 
 1. Clone this repository.
 2. Copy `.env.example` to `.env` and fill in real values:
    - `N8N_ENCRYPTION_KEY` — generate with `openssl rand -hex 32`
-   - `WAZUH_N8N_TOKEN` — generate with `openssl rand -hex 32`
-3. Start n8n (the compose file lives in `docker/`, the `.env` file at the repo root — point Compose at it explicitly):
+   - `WAZUH_N8N_TOKEN` — generate with `openssl rand -hex 32` (used by `tests/test-webhook.sh`; keep it in sync with the value you put in `/var/ossec/etc/n8n_token` in step 7)
+3. Start n8n:
    ```bash
-   cd docker
-   docker compose --env-file ../.env up -d
-   docker compose --env-file ../.env config   # sanity check that variables resolved
+   docker compose -f docker/docker-compose.yml --env-file .env up -d
+   docker compose -f docker/docker-compose.yml --env-file .env config   # sanity check that variables resolved
    ```
 4. Open n8n (via SSH tunnel if bound to `127.0.0.1`), create an owner account.
 5. Import `n8n/wazuh-alert-processing.workflow.json`. Fill in:
@@ -41,7 +42,7 @@
 9. Restart the manager: `systemctl restart wazuh-manager` (or `/var/ossec/bin/wazuh-control restart`).
 10. Install the failure-recovery timer. The service runs as the `wazuh` user, so the queue directory needs to be group-writable:
     ```bash
-    pip install -r replay/requirements.txt   # or: sudo apt install -y python3-requests
+    sudo apt install -y python3-requests
     cp replay/replay-wazuh-n8n.py /var/ossec/integrations/n8n_queue_retry.py
 
     mkdir -p /var/ossec/var/n8n_queue
