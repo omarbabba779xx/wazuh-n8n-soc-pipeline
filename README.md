@@ -89,18 +89,6 @@ Because deduplication keys on event ID and every individual check has a unique o
 <tr><td align="center">Resulting inbox volume — rule 19007</td><td align="center">Matching Wazuh dashboard events</td></tr>
 </table>
 
-**Fix applied:** the SCA module was scoped out of the Integrator's forwarding path, keeping compliance data available in the Wazuh dashboard for periodic review without turning every failed check into a page.
-
----
-
-## Security Notes
-
-- Webhook authenticated via a custom header token, never a static shared secret in a URL
-- Wazuh Integrator credentials stored in a file with `640` permissions, readable only by the `wazuh` group
-- Gmail access via OAuth2, no application password stored in plaintext
-- n8n bound to `127.0.0.1` only — reachable exclusively through an SSH tunnel, never exposed on the network
-- Host firewall default-deny, explicit allow rules scoped to required ports only
-
 ---
 
 ## Lessons Learned
