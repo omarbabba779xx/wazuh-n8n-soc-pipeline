@@ -4,8 +4,6 @@ A self-hosted security automation pipeline that turns raw Wazuh detections into 
 
 ![Architecture Diagram](assets/architecture.png)
 
-A walkthrough video of the diagram above, following one alert through all ten stages, is in [`assets/pipeline-walkthrough.mp4`](assets/pipeline-walkthrough.mp4).
-
 ---
 
 ## About
@@ -155,7 +153,6 @@ See [`docs/installation.md`](docs/installation.md) for the full setup procedure 
 │   └── troubleshooting.md
 └── assets/
     ├── architecture.png
-    ├── pipeline-walkthrough.mp4
     └── screenshots/
         ├── 01-wazuh-dashboard-rule5712.png
         ├── 02-gmail-alert-rule5712.png
