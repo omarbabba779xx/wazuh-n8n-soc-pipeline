@@ -2,7 +2,9 @@
 
 A self-hosted security automation pipeline that turns raw Wazuh detections into severity-classified, deduplicated email alerts — built and validated end-to-end in a local SOC lab, with a real Windows endpoint generating live findings.
 
-![Architecture Diagram](assets/architecture-diagram.svg)
+![Architecture Diagram](assets/architecture.png)
+
+A walkthrough video of the diagram above, following one alert through all ten stages, is in [`assets/pipeline-walkthrough.mp4`](assets/pipeline-walkthrough.mp4).
 
 ---
 
