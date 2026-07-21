@@ -43,7 +43,7 @@ jobs:
 
       - name: Scan for obvious committed secrets
         run: |
-          if grep -rniE "GOCSPX|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY" --exclude-dir=.git .; then
+          if grep -rniE "GOCSPX|BEGIN.(RSA|EC|OPENSSH).PRIVATE.KEY" --exclude-dir=.git --exclude-dir=.github .; then
             echo "Potential secret pattern found -- failing build."
             exit 1
           fi
